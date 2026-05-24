@@ -37,7 +37,7 @@ def load_data():
     # y entrar a /data
     # ======================================================
 
-    df = pd.read_csv("../data/clean_interactions.csv")
+    df = pd.read_csv("/data/clean_interactions.csv")
 
     # Convertir fecha a formato datetime
     df["date"] = pd.to_datetime(df["date"])
