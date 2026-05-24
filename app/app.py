@@ -8,12 +8,12 @@
 
 import streamlit as st
 import pandas as pd
+from pathlib import Path
 
 # ==========================================================
 # CONFIGURACIÓN GENERAL DE LA APP
 # ==========================================================
 
-# Configuración principal del dashboard
 st.set_page_config(
     page_title="Call Center Dashboard",
     page_icon="📊",
@@ -24,31 +24,43 @@ st.set_page_config(
 # CARGA DE DATOS
 # ==========================================================
 
-# @st.cache_data guarda los datos en memoria
-# para que la app cargue más rápido
-
 @st.cache_data
 def load_data():
 
     # ======================================================
-    # IMPORTANTE:
-    # Como app.py está dentro de la carpeta /app
-    # usamos ../ para salir una carpeta atrás
-    # y entrar a /data
+    # SOLUCIÓN PROFESIONAL PARA RUTAS
+    # ======================================================
+    #
+    # Esto funciona:
+    # ✅ Localmente
+    # ✅ En GitHub
+    # ✅ En Streamlit Cloud
+    #
+    # Porque detecta automáticamente
+    # dónde está ubicado app.py
     # ======================================================
 
-    df = pd.read_csv("/data/clean_interactions.csv")
+    BASE_DIR = Path(__file__).resolve().parent.parent
 
-    # Convertir fecha a formato datetime
+    # Ruta completa al CSV
+    csv_path = BASE_DIR / "data" / "clean_interactions.csv"
+
+    # Leer CSV
+    df = pd.read_csv(csv_path)
+
+    # Convertir fecha
     df["date"] = pd.to_datetime(df["date"])
 
-    # Crear columna de mes
+    # Crear columna mes
     df["mes"] = df["date"].dt.month_name()
 
     return df
 
 
-# Cargar dataframe
+# ==========================================================
+# CARGAR DATAFRAME
+# ==========================================================
+
 df = load_data()
 
 # ==========================================================
@@ -136,24 +148,33 @@ avg_wait = df_filtrado["wait_time_seconds"].mean()
 # SLA GENERAL
 # ----------------------------------------------------------
 
-# True = 1
-# False = 0
-# mean() convierte automáticamente a porcentaje
+sla_general = round(
+    df_filtrado["sla_ok"].mean() * 100,
+    2
+)
 
-sla_general = round(df_filtrado["sla_ok"].mean() * 100, 2)
-
-# ============================================
+# ==========================================================
 # MÉTRICAS OPERATIVAS
-# ============================================
+# ==========================================================
 
 # Interacciones atendidas
-attended = df_filtrado[df_filtrado["status"] == "Attended"].shape[0]
+attended = df_filtrado[
+    df_filtrado["status"] == "Attended"
+].shape[0]
 
 # Interacciones abandonadas
-abandoned = df_filtrado[df_filtrado["status"] == "Abandoned"].shape[0]
+abandoned = df_filtrado[
+    df_filtrado["status"] == "Abandoned"
+].shape[0]
 
-# Abandon Rate (%)
-abandon_rate = round((abandoned / total_interacciones) * 100, 2)
+# Evitar división por cero
+if total_interacciones > 0:
+    abandon_rate = round(
+        (abandoned / total_interacciones) * 100,
+        2
+    )
+else:
+    abandon_rate = 0
 
 # ==========================================================
 # CREAR COLUMNAS KPI
@@ -161,7 +182,6 @@ abandon_rate = round((abandoned / total_interacciones) * 100, 2)
 
 col1, col2, col3 = st.columns(3)
 col4, col5, col6 = st.columns(3)
-
 
 # KPI 1
 col1.metric(
@@ -200,7 +220,7 @@ col6.metric(
 )
 
 # ==========================================================
-# SEPARADOR VISUAL
+# MÉTRICAS OPERATIVAS
 # ==========================================================
 
 st.markdown("---")
@@ -208,8 +228,6 @@ st.markdown("---")
 st.subheader("📉 Métricas Operativas")
 
 st.write(f"✅ Abandon Rate: {abandon_rate}%")
-
-
 
 # ==========================================================
 # PRIMERA FILA DE GRÁFICOS
@@ -248,7 +266,6 @@ with col2:
         .count()
     )
 
-    # Mostrar tabla simple
     st.dataframe(interacciones_canal)
 
 # ==========================================================
@@ -284,59 +301,80 @@ with col4:
     st.dataframe(df_filtrado)
 
 # ==========================================================
-# INSIGHTS AUTOMÁTICOS
+# ALERTAS OPERATIVAS (RTA)
 # ==========================================================
 
-# ============================================
-# 🚨 ALERTAS OPERATIVAS (RTA)
-# ============================================
-
 st.markdown("---")
+
 st.subheader("🚨 Alertas operativas")
 
+# ----------------------------------------------------------
 # ALERTA SLA
+# ----------------------------------------------------------
+
 if sla_general < 50:
+
     st.error(f"SLA crítico: {sla_general}%")
+
 elif sla_general < 70:
+
     st.warning(f"SLA bajo: {sla_general}%")
+
 else:
+
     st.success(f"SLA saludable: {sla_general}%")
 
+# ----------------------------------------------------------
 # ALERTA WAIT TIME
+# ----------------------------------------------------------
+
 if avg_wait > 60:
+
     st.warning(
-        f"Tiempo de espera elevado: {round(avg_wait,2)} segundos"
+        f"Tiempo de espera elevado: "
+        f"{round(avg_wait, 2)} segundos"
     )
+
 else:
+
     st.success(
-        f"Tiempo de espera estable: {round(avg_wait,2)} segundos"
+        f"Tiempo de espera estable: "
+        f"{round(avg_wait, 2)} segundos"
     )
 
+# ----------------------------------------------------------
 # AGENTE MÁS CRÍTICO
-agente_critico = (
-    df_filtrado
-    .groupby("agent_name")["wait_time_seconds"]
-    .mean()
-    .idxmax()
-)
+# ----------------------------------------------------------
 
-mayor_wait = (
-    df_filtrado
-    .groupby("agent_name")["wait_time_seconds"]
-    .mean()
-    .max()
-)
+if not df_filtrado.empty:
 
-st.error(
-    f"Agente con mayor wait time: "
-    f"{agente_critico} ({round(mayor_wait,2)}s)"
-)
+    agente_critico = (
+        df_filtrado
+        .groupby("agent_name")["wait_time_seconds"]
+        .mean()
+        .idxmax()
+    )
+
+    mayor_wait = (
+        df_filtrado
+        .groupby("agent_name")["wait_time_seconds"]
+        .mean()
+        .max()
+    )
+
+    st.error(
+        f"Agente con mayor wait time: "
+        f"{agente_critico} ({round(mayor_wait, 2)}s)"
+    )
+
+# ==========================================================
+# INSIGHTS AUTOMÁTICOS
+# ==========================================================
 
 st.markdown("---")
 
 st.subheader("📌 Insights automáticos")
 
-# Validar que existan datos
 if not df_filtrado.empty:
 
     # Canal más usado
@@ -361,10 +399,9 @@ if not df_filtrado.empty:
         .idxmax()
     )
 
-    # SLA actual
+    # Mostrar insights
     st.write(f"• SLA General: **{sla_general}%**")
 
-    # Mostrar insights
     st.write(f"• Canal más utilizado: **{canal_top}**")
 
     st.write(f"• Agente con mayor carga operativa: **{agente_top}**")
@@ -375,7 +412,9 @@ if not df_filtrado.empty:
 
 else:
 
-    st.warning("⚠️ No hay datos con los filtros seleccionados")
+    st.warning(
+        "⚠️ No hay datos con los filtros seleccionados"
+    )
 
 # ==========================================================
 # FOOTER
@@ -384,5 +423,6 @@ else:
 st.markdown("---")
 
 st.caption(
-    "Proyecto desarrollado con Python, Pandas y Streamlit | Portafolio de Data Analytics"
+    "Proyecto desarrollado con Python, Pandas y Streamlit | "
+    "Portafolio de Data Analytics"
 )
