@@ -1,5 +1,8 @@
 # ============================================
-# 📊 ETL + ANÁLISIS CALL CENTER (RTA PROJECT)
+# 📊 ETL + ANÁLISIS CALL CENTER
+# Proyecto Portafolio Data Analytics
+# Fase 1 → RTA
+# Fase 2 → Reporting Analyst
 # ============================================
 
 # ============================================
@@ -9,11 +12,11 @@
 import pandas as pd
 
 # ============================================
-# 1. CARGAR DATOS ORIGINALES
+# 1. CARGAR DATOS RAW
 # ============================================
 
-# Leemos el archivo Excel original
-# Este archivo representa la fuente RAW (sin procesar)
+# Fuente original de datos
+# (simula una extracción desde Excel)
 
 df = pd.read_excel("../data/call_center_interactions.xlsx")
 
@@ -23,15 +26,12 @@ print("\n✅ Datos originales cargados correctamente")
 # 2. EXPLORACIÓN INICIAL
 # ============================================
 
-# Mostrar primeras filas
 print("\n🔹 Primeras filas:")
 print(df.head())
 
-# Mostrar nombres de columnas
 print("\n🔹 Columnas del dataset:")
 print(df.columns)
 
-# Información general del dataset
 print("\n🔹 Información del dataset:")
 print(df.info())
 
@@ -40,48 +40,56 @@ print(df.info())
 # ============================================
 
 # --------------------------------------------
-# Eliminar duplicados
+# Eliminar registros duplicados
 # --------------------------------------------
 
 df = df.drop_duplicates()
 
 # --------------------------------------------
-# Convertir columna fecha
+# Convertir fecha a datetime
 # --------------------------------------------
 
-# Convertimos la columna "date" a formato datetime
-# errors="coerce" convierte errores en NaT
-
-df["date"] = pd.to_datetime(df["date"], errors="coerce")
+df["date"] = pd.to_datetime(
+    df["date"],
+    errors="coerce"
+)
 
 # --------------------------------------------
-# Eliminar registros importantes nulos
+# Eliminar registros críticos nulos
 # --------------------------------------------
 
-df = df.dropna(subset=["interaction_id", "agent_name"])
+df = df.dropna(
+    subset=[
+        "interaction_id",
+        "agent_name"
+    ]
+)
 
 # --------------------------------------------
 # Crear columna MES
 # --------------------------------------------
 
-# Extraemos el nombre del mes desde la fecha
-
 df["mes"] = df["date"].dt.month_name()
 
+print("\n🧹 Datos limpiados correctamente")
+
 # ============================================
-# 4. MÉTRICAS RTA (SLA)
+# 4. KPI RTA → SLA
 # ============================================
 
-# SLA = Service Level Agreement
 # Regla:
-# Si wait_time_seconds <= 60
-# entonces cumplió SLA
+# SLA OK si espera <= 60 segundos
 
 df["sla_ok"] = df["wait_time_seconds"] <= 60
 
+print("\n📌 SLA agregado correctamente")
+
 # ============================================
-# PERFORMANCE LEVEL (AHT)
+# 5. PERFORMANCE LEVEL
 # ============================================
+
+# Clasificación básica basada en AHT
+# (Average Handle Time)
 
 def clasificar_rendimiento(aht):
 
@@ -95,15 +103,15 @@ def clasificar_rendimiento(aht):
         return "Crítico"
 
 
-# Crear nueva columna
-df["performance_level"] = df["handle_time_seconds"].apply(clasificar_rendimiento)
+df["performance_level"] = (
+    df["handle_time_seconds"]
+    .apply(clasificar_rendimiento)
+)
 
 print("\n📌 Performance Level agregado correctamente")
 
-print("\n📌 SLA agregado correctamente")
-
 # ============================================
-# 5. ANÁLISIS PRINCIPAL
+# 6. ANÁLISIS PRINCIPAL
 # ============================================
 
 # --------------------------------------------
@@ -133,7 +141,7 @@ print("\n🔹 Interacciones por canal:")
 print(interacciones_por_canal)
 
 # --------------------------------------------
-# Promedio Handle Time
+# Handle Time Promedio
 # --------------------------------------------
 
 promedio_handle = (
@@ -142,11 +150,11 @@ promedio_handle = (
     .sort_values(ascending=False)
 )
 
-print("\n🔹 Promedio handle time:")
+print("\n🔹 Promedio Handle Time:")
 print(promedio_handle)
 
 # --------------------------------------------
-# Promedio Wait Time
+# Wait Time Promedio
 # --------------------------------------------
 
 promedio_wait = (
@@ -155,53 +163,314 @@ promedio_wait = (
     .sort_values(ascending=False)
 )
 
-print("\n🔹 Promedio wait time:")
+print("\n🔹 Promedio Wait Time:")
 print(promedio_wait)
 
 # ============================================
-# 6. TOP AGENTES
+# 7. TOP AGENTES
 # ============================================
 
-top_agentes = interacciones_por_agente.head(3)
+top_agentes = (
+    interacciones_por_agente
+    .head(3)
+)
 
-print("\n🏆 Top 3 agentes:")
+print("\n🏆 TOP 3 AGENTES")
 print(top_agentes)
 
 # ============================================
-# 7. KPI SLA
+# 8. KPI SLA GENERAL
 # ============================================
 
-# Calculamos porcentaje SLA
-
-sla_porcentaje = round(df["sla_ok"].mean() * 100, 2)
+sla_porcentaje = round(
+    df["sla_ok"].mean() * 100,
+    2
+)
 
 print(f"\n📌 SLA GENERAL: {sla_porcentaje}%")
 
 # ============================================
-# 8. EXPORTAR DATA LIMPIA
+# 9. PERFORMANCE POR AGENTE
 # ============================================
 
-# Guardamos dataset limpio para:
-# Power BI
-# Streamlit
-# futuros análisis
+# Primer análisis de nivel
+# Reporting Analyst
 
-df.to_csv("../data/clean_interactions.csv", index=False)
+performance_agente = (
+    df.groupby("agent_name")
+    .agg({
+        "interaction_id": "count",
+        "handle_time_seconds": "mean",
+        "wait_time_seconds": "mean",
+        "sla_ok": "mean"
+    })
+)
+
+# Renombrar columnas
+
+performance_agente.columns = [
+    "total_interacciones",
+    "avg_handle_time",
+    "avg_wait_time",
+    "sla_pct"
+]
+
+# SLA a porcentaje
+
+performance_agente["sla_pct"] = (
+    performance_agente["sla_pct"] * 100
+).round(2)
+
+print("\n📊 PERFORMANCE POR AGENTE")
+print(performance_agente)
+
+# ============================================
+# PERFORMANCE SCORE
+# ============================================
+
+# Fórmula sencilla para empezar:
+# 70% peso SLA
+# 30% peso volumen de interacciones
+
+max_interacciones = performance_agente[
+    "total_interacciones"
+].max()
+
+performance_agente["score"] = (
+    (performance_agente["sla_pct"] * 0.7)
+    +
+    (
+        performance_agente["total_interacciones"]
+        / max_interacciones
+        * 100
+        * 0.3
+    )
+).round(2)
+
+# Ranking de agentes
+
+ranking_agentes = (
+    performance_agente
+    .sort_values(
+        by="score",
+        ascending=False
+    )
+)
+
+print("\n🏆 RANKING DE AGENTES")
+print(
+    ranking_agentes[
+        [
+            "total_interacciones",
+            "sla_pct",
+            "score"
+        ]
+    ]
+)
+
+# ============================================
+# AGENTES EN RIESGO
+# ============================================
+
+def clasificar_score(score):
+
+    if score >= 70:
+        return "Top Performer"
+
+    elif score >= 60:
+        return "Estable"
+
+    else:
+        return "En Riesgo"
+
+
+ranking_agentes["categoria"] = (
+    ranking_agentes["score"]
+    .apply(clasificar_score)
+)
+
+print("\n🚨 CLASIFICACIÓN DE AGENTES")
+print(
+    ranking_agentes[
+        [
+            "score",
+            "categoria"
+        ]
+    ]
+)
+
+# ============================================
+# ANÁLISIS POR CANAL
+# ============================================
+
+canal_performance = (
+    df.groupby("channel")
+    .agg({
+        "interaction_id": "count",
+        "wait_time_seconds": "mean",
+        "handle_time_seconds": "mean",
+        "sla_ok": "mean"
+    })
+)
+
+canal_performance.columns = [
+    "total_interacciones",
+    "avg_wait_time",
+    "avg_handle_time",
+    "sla_pct"
+]
+
+canal_performance["sla_pct"] = (
+    canal_performance["sla_pct"] * 100
+).round(2)
+
+print("\n📞 PERFORMANCE POR CANAL")
+print(canal_performance)
+
+# ============================================
+# AGENTES CRÍTICOS
+# ============================================
+
+agentes_criticos = ranking_agentes[
+    ranking_agentes["categoria"] == "En Riesgo"
+]
+
+print("\n🚨 AGENTES CRÍTICOS")
+print(
+    agentes_criticos[
+        [
+            "score",
+            "sla_pct",
+            "avg_wait_time"
+        ]
+    ]
+)
+
+# ==========================================================
+# TOP Y BOTTOM PERFORMERS
+# ==========================================================
+
+st.markdown("---")
+
+st.subheader("🏅 Top & Bottom Performers")
+
+col1, col2 = st.columns(2)
+
+with col1:
+
+    mejor_agente = agent_perf.loc[
+        agent_perf["score"].idxmax()
+    ]
+
+    st.success(
+        f"""
+        🏆 Mejor Agente
+
+        Nombre: {mejor_agente['agent_name']}
+
+        Score: {mejor_agente['score']}
+        """
+    )
+
+with col2:
+
+    peor_agente = agent_perf.loc[
+        agent_perf["score"].idxmin()
+    ]
+
+    st.error(
+        f"""
+        ⚠️ Agente con Riesgo
+
+        Nombre: {peor_agente['agent_name']}
+
+        Score: {peor_agente['score']}
+        """
+    )
+
+# ============================================
+# EXPORTAR
+# ============================================
+
+agentes_criticos.to_csv(
+    "../data/agentes_criticos.csv",
+    index=True
+)
+
+print(
+    "\n💾 Archivo agentes_criticos.csv exportado"
+)
+
+# ============================================
+# EXPORTAR PERFORMANCE POR CANAL
+# ============================================
+
+canal_performance.to_csv(
+    "../data/channel_performance.csv"
+)
+
+print(
+    "\n💾 channel_performance.csv guardado correctamente"
+)
+
+# ============================================
+# EXPORTAR PERFORMANCE DE AGENTES
+# ============================================
+
+ranking_agentes.to_csv(
+    "../data/agent_performance.csv"
+)
+
+print(
+    "\n💾 Archivo agent_performance.csv guardado correctamente"
+)
+
+# ============================================
+# 10. EXPORTAR DATA LIMPIA
+# ============================================
+
+df.to_csv(
+    "../data/clean_interactions.csv",
+    index=False
+)
 
 print("\n💾 Dataset limpio guardado correctamente")
 
 # ============================================
-# 9. CONCLUSIONES AUTOMÁTICAS
+# 11. CONCLUSIONES AUTOMÁTICAS
 # ============================================
 
-print("\n📌 CONCLUSIONES:")
+print("\n📌 CONCLUSIONES")
 
-print(f"- Total interacciones: {df['interaction_id'].count()}")
-print(f"- Canal más usado: {interacciones_por_canal.idxmax()}")
-print(f"- Agente con más carga: {interacciones_por_agente.idxmax()}")
-print(f"- Mayor handle time: {promedio_handle.idxmax()}")
-print(f"- Mayor wait time: {promedio_wait.idxmax()}")
-print(f"- SLA general: {sla_porcentaje}%")
+print(
+    f"- Total interacciones: "
+    f"{df['interaction_id'].count()}"
+)
+
+print(
+    f"- Canal más usado: "
+    f"{interacciones_por_canal.idxmax()}"
+)
+
+print(
+    f"- Agente con más carga: "
+    f"{interacciones_por_agente.idxmax()}"
+)
+
+print(
+    f"- Mayor Handle Time: "
+    f"{promedio_handle.idxmax()}"
+)
+
+print(
+    f"- Mayor Wait Time: "
+    f"{promedio_wait.idxmax()}"
+)
+
+print(
+    f"- SLA General: "
+    f"{sla_porcentaje}%"
+)
 
 # ============================================
 # FIN DEL PROCESO

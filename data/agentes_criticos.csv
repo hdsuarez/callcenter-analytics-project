@@ -1,0 +1,2 @@
+agent_name,total_interacciones,avg_handle_time,avg_wait_time,sla_pct,score,categoria
+Agent_C,70,253.55714285714285,63.357142857142854,48.57,57.59,En Riesgo
